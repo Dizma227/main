@@ -1,0 +1,85 @@
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtGui import QPainter, QPixmap, QPen
+from PyQt5.QtCore import Qt, QPoint
+from mathpix_api import recognize_formula
+from result_visualizer import compute_and_visualize
+
+class DrawingCanvas(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFixedSize(400, 300)
+        self.canvas = QPixmap(self.size())
+        self.canvas.fill(Qt.white)
+        self.last_point = QPoint()
+        self.drawing = False
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.canvas)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drawing = True
+            self.last_point = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.drawing:
+            painter = QPainter(self.canvas)
+            pen = QPen(Qt.black, 4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+            painter.setPen(pen)
+            painter.drawLine(self.last_point, event.pos())
+            self.last_point = event.pos()
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drawing = False
+
+    def get_image(self):
+        return self.canvas.toImage()
+
+    def clear_canvas(self):
+        self.canvas.fill(Qt.white)
+        self.update()
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Math Drawer")
+        self.canvas = DrawingCanvas()
+
+        self.recognize_button = QPushButton("Распознать и вычислить")
+        self.recognize_button.clicked.connect(self.process_math)
+
+        self.clear_button = QPushButton("Очистить")
+        self.clear_button.clicked.connect(self.canvas.clear_canvas)
+
+        self.result_label = QLabel("Результат появится здесь.")
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        layout.addWidget(self.recognize_button)
+        layout.addWidget(self.clear_button)
+        layout.addWidget(self.result_label)
+
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+    def process_math(self):
+        image = self.canvas.get_image()
+        image.save("input.png")
+        latex_expr = recognize_formula("input.png")
+
+        if latex_expr:
+            output_path, result = compute_and_visualize(latex_expr)
+            self.result_label.setText(f"Результат: {result}")
+        else:
+            self.result_label.setText("Не удалось распознать выражение.")
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
