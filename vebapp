@@ -1,0 +1,43 @@
+
+from flask import Flask, render_template, request
+from pygments import highlight
+from pygments.lexers import PythonLexer
+from pygments.formatters import HtmlFormatter
+import traceback
+import sys
+import io
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    code = ''
+    output = ''
+    highlighted_error = ''
+
+    if request.method == 'POST':
+        code = request.form['code']
+
+        # Перехват вывода
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = io.StringIO()
+
+        try:
+            # Выполнение кода
+            exec(code, {})
+            output = redirected_output.getvalue()
+        except Exception:
+            error_msg = traceback.format_exc()
+            formatter = HtmlFormatter(linenos=True, cssclass="highlight")
+            highlighted_error = highlight(error_msg, PythonLexer(), formatter)
+        finally:
+            sys.stdout = old_stdout
+
+    return render_template('index.html',
+                           code=code,
+                           output=output,
+                           highlighted_error=highlighted_error,
+                           css=HtmlFormatter().get_style_defs('.highlight'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
